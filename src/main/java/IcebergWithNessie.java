@@ -4,7 +4,6 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -20,10 +19,10 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class IcebergwithNessie {
+public class IcebergWithNessie {
   Schema schema;
 
-  public IcebergwithNessie(Schema schema){
+  public IcebergWithNessie(Schema schema){
     this.schema = schema;
   }
 
@@ -63,8 +62,22 @@ public class IcebergwithNessie {
     return dataWriter.toDataFile();
   }
 
-  public Table createIcebergTable(String NessieURI, String branchName, String databaseName, String tableName,
-                                  String warehousePath) {
+  public Table createIcebergTable(NessieCatalog catalog, String databaseName, String tableName) {
+    final TableIdentifier TABLE_IDENTIFIER = TableIdentifier
+        .of(databaseName, tableName);
+    catalog.buildTable(TABLE_IDENTIFIER, schema);
+    catalog.newCreateTableTransaction(TABLE_IDENTIFIER, schema);
+    catalog.createTable(TABLE_IDENTIFIER, schema).location();
+
+    return catalog.loadTable(TABLE_IDENTIFIER);
+  }
+
+  public void dropIcebergTable(NessieCatalog catalog, String databaseName, String tableName) {
+    final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(databaseName, tableName);
+    catalog.dropTable(TABLE_IDENTIFIER, false);
+  }
+
+  public NessieCatalog initializeNessieCatalog(String NessieURI, String branchName, String warehousePath){
     Configuration hadoopConfig = new Configuration();
     hadoopConfig.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
 
@@ -76,12 +89,7 @@ public class IcebergwithNessie {
         CatalogProperties.WAREHOUSE_LOCATION, warehousePath
     ));
 
-    final TableIdentifier TABLE_IDENTIFIER = TableIdentifier
-        .of(databaseName, tableName);
-    catalog.buildTable(TABLE_IDENTIFIER, schema);
-    catalog.newCreateTableTransaction(TABLE_IDENTIFIER, schema);
-    catalog.createTable(TABLE_IDENTIFIER, schema).location();
-
-    return catalog.loadTable(TABLE_IDENTIFIER);
+    return catalog;
   }
+
 }

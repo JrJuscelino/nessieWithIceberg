@@ -1,6 +1,7 @@
 import static org.hamcrest.CoreMatchers.is;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import org.apache.iceberg.DataFile;
@@ -9,7 +10,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -18,10 +21,12 @@ import org.junit.Test;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.TemporaryFolder;
 import org.projectnessie.api.TreeApi;
+import org.projectnessie.api.params.CommitLogParams;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Reference;
 
 public class TestCreatIcebergTable {
@@ -34,37 +39,49 @@ public class TestCreatIcebergTable {
       Types.NestedField.required(1, "id", Types.LongType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()));
   static Reference nessieBranch;
+  static NessieClient nessieClient;
+  static TreeApi tree;
 
   @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  public final TemporaryFolder temp = new TemporaryFolder();
 
   @Rule
   public final ErrorCollector collector = new ErrorCollector();
 
   @BeforeClass
   public static void setUp() throws NessieConflictException, NessieNotFoundException {
-    NessieClient client = NessieClient.builder().withUri(nessieURI).build();
-    TreeApi tree = client.getTreeApi();
+    nessieClient = NessieClient.builder().withUri(nessieURI).build();
+    tree = nessieClient.getTreeApi();
     nessieBranch = tree.createReference(Branch.of(nessieBranchName, null));
   }
 
   @AfterClass
-  public static void tearDown() throws Exception {
-    NessieClient client = NessieClient.builder().withUri(nessieURI).build();
-    TreeApi tree = client.getTreeApi();
+  public static void tearDown() throws Exception {;
     for (Reference r : tree.getAllReferences()) {
       if (r instanceof Branch && Objects.equals(r.getName(), nessieBranchName)) {
         tree.deleteBranch(r.getName(), r.getHash());
         break;
       }
     }
+
+    nessieClient.close();
+  }
+
+  private void verifyCommitMetadata() throws NessieNotFoundException {
+    NessieClient client = NessieClient.builder().withUri(nessieURI).build();
+    TreeApi tree = client.getTreeApi();
+    List<CommitMeta> log = tree.getCommitLog(nessieBranchName, CommitLogParams.empty()).getOperations();
+    collector.checkThat(log.isEmpty(), is(false));
+    log.forEach(x -> {
+      collector.checkThat(x.getAuthor(), is(System.getProperty("user.name")));
+    });
   }
 
   @Test
   public void testCreateParquetFile() throws IOException {
     OutputFile file = Files.localOutput(temp.newFile());
 
-    IcebergwithNessie object = new IcebergwithNessie(schema);
+    IcebergWithNessie object = new IcebergWithNessie(schema);
     DataFile parquetFile = object.createParquetFile(file);
 
     collector.checkThat(parquetFile.format(), is(FileFormat.PARQUET));
@@ -72,11 +89,17 @@ public class TestCreatIcebergTable {
   }
 
   @Test
-  public void testCreateIcebergTable() {
-    IcebergwithNessie object = new IcebergwithNessie(schema);
-    Table icebergTable =
-        object.createIcebergTable(nessieURI, nessieBranchName, databaseName, tableName, warehousePath);
+  public void testCreateAndDropIcebergTable() throws NessieNotFoundException {
+    IcebergWithNessie object = new IcebergWithNessie(schema);
+    NessieCatalog catalog = object.initializeNessieCatalog(nessieURI, nessieBranchName, warehousePath);
+    Table icebergTable = object.createIcebergTable(catalog, databaseName, tableName);
 
-    collector.checkThat(icebergTable.name(), is(String.format("nessie.database_sample.%s", tableName)));
+    collector.checkThat(icebergTable.name(), is(String.format("nessie.%s.%s", databaseName, tableName)));
+
+    object.dropIcebergTable(catalog, databaseName, tableName);
+
+    collector.checkThat(catalog.tableExists(TableIdentifier.of(databaseName, tableName)), is(false));
+
+    verifyCommitMetadata();
   }
 }
