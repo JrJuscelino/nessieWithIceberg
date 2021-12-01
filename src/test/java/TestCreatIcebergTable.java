@@ -1,6 +1,8 @@
 import static org.hamcrest.CoreMatchers.is;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -18,12 +20,12 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.TemporaryFolder;
 import org.projectnessie.api.TreeApi;
 import org.projectnessie.api.params.CommitLogParams;
 import org.projectnessie.client.NessieClient;
-import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
@@ -34,13 +36,13 @@ public class TestCreatIcebergTable {
   final static String nessieBranchName = "test";
   final static String databaseName = "database_sample";
   final static String tableName = "table_sample";
-  final static String warehousePath = "hdfs://localhost:9000/warehouse";
   final Schema schema = new Schema(
       Types.NestedField.required(1, "id", Types.LongType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()));
   static Reference nessieBranch;
   static NessieClient nessieClient;
   static TreeApi tree;
+  static String warehousePath;
 
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
@@ -49,10 +51,14 @@ public class TestCreatIcebergTable {
   public final ErrorCollector collector = new ErrorCollector();
 
   @BeforeClass
-  public static void setUp() throws NessieConflictException, NessieNotFoundException {
+  public static void setUp() throws IOException {
     nessieClient = NessieClient.builder().withUri(nessieURI).build();
     tree = nessieClient.getTreeApi();
     nessieBranch = tree.createReference(Branch.of(nessieBranchName, null));
+    File tmpDir = File.createTempFile("my_prefix", "");
+    tmpDir.delete();
+    tmpDir.mkdir();
+    warehousePath = tmpDir.toString();
   }
 
   @AfterClass

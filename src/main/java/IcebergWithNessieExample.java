@@ -29,7 +29,6 @@ public class IcebergWithNessieExample {
     String propFileName = "config.properties";
     NessieClient nessieClient;
     TreeApi tree;
-    Reference nessieBranch;
 
     // load a properties file
     try (InputStream input = IcebergWithNessieExample.class.getClassLoader().getResourceAsStream(propFileName)) {
@@ -54,7 +53,7 @@ public class IcebergWithNessieExample {
 
     nessieClient = NessieClient.builder().withUri(nessieURI).build();
     tree = nessieClient.getTreeApi();
-    nessieBranch = tree.createReference(Branch.of(nessieBranchName, null));
+    tree.createReference(Branch.of(nessieBranchName, null));
 
     final Schema schema = new Schema(
         Types.NestedField.required(1, "id", Types.LongType.get()),
