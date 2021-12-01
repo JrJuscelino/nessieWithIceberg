@@ -65,7 +65,7 @@ public class IcebergWithNessieExample {
 
     IcebergWithNessie icebergWithNessie = new IcebergWithNessie(schema);
 
-    DataFile parquetFile = icebergWithNessie.createParquetFile(outputFile);
+    DataFile parquetFile = icebergWithNessie.writeParquetFile(outputFile);
     System.out.printf("File format: %s%n", parquetFile.format());
     System.out.printf("Record count: %s%n", parquetFile.recordCount());
 

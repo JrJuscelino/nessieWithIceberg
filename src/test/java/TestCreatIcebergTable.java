@@ -1,5 +1,6 @@
 import static org.hamcrest.CoreMatchers.is;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -23,18 +24,21 @@ import org.junit.rules.TemporaryFolder;
 import org.projectnessie.api.TreeApi;
 import org.projectnessie.api.params.CommitLogParams;
 import org.projectnessie.client.NessieClient;
-import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Reference;
 
+/**
+ * This class provides the tests of the methods that are in {@link IcebergWithNessie}
+ */
 public class TestCreatIcebergTable {
-  final static String nessieURI = "http://localhost:19120/api/v1";
-  final static String nessieBranchName = "test";
-  final static String databaseName = "database_sample";
+
+  private final static String nessieURI = "http://localhost:19120/api/v1";
+  private final static String nessieBranchName = "test";
+  private final static String databaseName = "database_sample";
   final static String tableName = "table_sample";
-  final static String warehousePath = "hdfs://localhost:9000/warehouse";
+  static String warehousePath = "hdfs://localhost:9000/warehouse";
   final Schema schema = new Schema(
       Types.NestedField.required(1, "id", Types.LongType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()));
@@ -49,10 +53,15 @@ public class TestCreatIcebergTable {
   public final ErrorCollector collector = new ErrorCollector();
 
   @BeforeClass
-  public static void setUp() throws NessieConflictException, NessieNotFoundException {
+  public static void setUp() throws IOException {
     nessieClient = NessieClient.builder().withUri(nessieURI).build();
     tree = nessieClient.getTreeApi();
     nessieBranch = tree.createReference(Branch.of(nessieBranchName, null));
+    File tmpDir = File.createTempFile("my_prefix", "");
+    tmpDir.delete();
+    tmpDir.mkdir();
+    warehousePath = tmpDir.toString();
+
   }
 
   @AfterClass
@@ -67,6 +76,10 @@ public class TestCreatIcebergTable {
     nessieClient.close();
   }
 
+  /**
+   * Verify the Nessie commits metadata and list the logs.
+   *
+   */
   private void verifyCommitMetadata() throws NessieNotFoundException {
     NessieClient client = NessieClient.builder().withUri(nessieURI).build();
     TreeApi tree = client.getTreeApi();
@@ -77,17 +90,25 @@ public class TestCreatIcebergTable {
     });
   }
 
+  /**
+   * Call and test the method writeParquetFile to create a parquet file and save it in a temporary folder.
+   *
+   */
   @Test
-  public void testCreateParquetFile() throws IOException {
+  public void testWriteParquetFile() throws IOException {
     OutputFile file = Files.localOutput(temp.newFile());
 
     IcebergWithNessie object = new IcebergWithNessie(schema);
-    DataFile parquetFile = object.createParquetFile(file);
+    DataFile parquetFile = object.writeParquetFile(file);
 
     collector.checkThat(parquetFile.format(), is(FileFormat.PARQUET));
     collector.checkThat(parquetFile.content(), is(FileContent.DATA));
   }
 
+  /**
+   * Call and test the methods createIcebergTable to create an Iceberg table and dropIcebergTable to drop the Iceberg table.
+   *
+   */
   @Test
   public void testCreateAndDropIcebergTable() throws NessieNotFoundException {
     IcebergWithNessie object = new IcebergWithNessie(schema);
