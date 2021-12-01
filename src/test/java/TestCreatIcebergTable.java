@@ -2,6 +2,7 @@ import static org.hamcrest.CoreMatchers.is;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -19,6 +20,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.TemporaryFolder;
 import org.projectnessie.api.TreeApi;
@@ -38,13 +40,13 @@ public class TestCreatIcebergTable {
   private final static String nessieBranchName = "test";
   private final static String databaseName = "database_sample";
   final static String tableName = "table_sample";
-  static String warehousePath = "hdfs://localhost:9000/warehouse";
   final Schema schema = new Schema(
       Types.NestedField.required(1, "id", Types.LongType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()));
   static Reference nessieBranch;
   static NessieClient nessieClient;
   static TreeApi tree;
+  static String warehousePath;
 
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
@@ -61,7 +63,6 @@ public class TestCreatIcebergTable {
     tmpDir.delete();
     tmpDir.mkdir();
     warehousePath = tmpDir.toString();
-
   }
 
   @AfterClass
