@@ -18,16 +18,13 @@ import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
+
 
 /**
  *  This class provides the methods that create a parquet file and create and drop an iceberg table using a Nessie catalog.
  *
  */
 public class IcebergWithNessie {
-  @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension();
 
   Schema schema;
 
