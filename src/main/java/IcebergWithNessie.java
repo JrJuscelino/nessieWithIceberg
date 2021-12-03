@@ -1,12 +1,13 @@
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
@@ -16,8 +17,9 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.parquet.schema.MessageType;
 
 
 /**
@@ -32,8 +34,8 @@ public class IcebergWithNessie {
    * Create a new {@link IcebergWithNessie} instance.
    * @param schema represent the schema that will be used to create the parquet files and the Iceberg tables
    */
-  public IcebergWithNessie(Schema schema){
-    this.schema = schema;
+  public IcebergWithNessie(MessageType parquetSchema){
+    this.schema = ParquetSchemaUtil.convert(parquetSchema);
   }
 
   /**
@@ -41,35 +43,19 @@ public class IcebergWithNessie {
    * @param outputFile represent the file
    * @return The parquet file in datafile format
    */
-  public DataFile writeParquetFile(OutputFile outputFile) throws IOException {
+  public DataFile writeParquetFile(OutputFile outputFile, HashMap<String, Object> data) throws IOException {
     GenericRecord record = GenericRecord.create(schema);
-
-    ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a")));
-    builder.add(record.copy(ImmutableMap.of("id", 2L, "data", "b")));
-    builder.add(record.copy(ImmutableMap.of("id", 3L, "data", "c")));
-    builder.add(record.copy(ImmutableMap.of("id", 4L, "data", "d")));
-    builder.add(record.copy(ImmutableMap.of("id", 5L, "data", "e")));
-
-    List<Record> records = builder.build();
-
-    SortOrder sortOrder = SortOrder.builderFor(schema)
-        .withOrderId(10)
-        .asc("id")
-        .build();
+    record.copy(data);
 
     DataWriter<Record> dataWriter = Parquet.writeData(outputFile)
         .schema(schema)
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
-        .withSortOrder(sortOrder)
         .build();
 
     try {
-      for (Record r : records) {
-        dataWriter.add(r);
-      }
+        dataWriter.add(record);
     } finally {
       dataWriter.close();
     }
