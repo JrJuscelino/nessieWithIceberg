@@ -113,7 +113,9 @@ public class IcebergWithNessie {
    * @return represent a initialized Nessie catalog
    */
   public NessieCatalog initializeNessieCatalog(String NessieURI, String branchName, String warehousePath){
+    Configuration hadoopConfig = new Configuration();
     NessieCatalog catalog = new NessieCatalog();
+    catalog.setConf(hadoopConfig);
     catalog.initialize("nessie", ImmutableMap.of("ref", branchName,
         CatalogProperties.URI, NessieURI,
         "auth-type", "NONE",
